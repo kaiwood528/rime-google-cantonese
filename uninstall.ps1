@@ -8,6 +8,8 @@ param([switch]$PurgeCache, [switch]$Interactive)
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rime = Join-Path $env:APPDATA "Rime"
+$customDir = (Get-ItemProperty "HKCU:\Software\Rime\Weasel" -ErrorAction SilentlyContinue).RimeUserDir
+if ($customDir) { $rime = [Environment]::ExpandEnvironmentVariables($customDir) }
 $utf8 = New-Object System.Text.UTF8Encoding $false
 $marker = "rime-google-cantonese"
 $programDir = Join-Path $env:LOCALAPPDATA "Programs\rime-google-cantonese"
@@ -19,7 +21,7 @@ if (Test-Path $msgFile) {
         if ($line -match '^([a-z0-9_]+)=(.*)$') { $msg[$Matches[1]] = $Matches[2] }
     }
 }
-if ($Interactive -and $msg.ContainsKey("uninstall_title")) { Write-Host ""; Write-Host $msg["uninstall_title"]; Write-Host "" }
+if ($Interactive -and $msg.ContainsKey("uninstall_title")) { Write-Host ""; Write-Host $msg["uninstall_title"]; if ($msg.ContainsKey("uninstall_title_en")) { Write-Host $msg["uninstall_title_en"] -ForegroundColor DarkGray }; Write-Host "" }
 
 Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
     Where-Object { $_.CommandLine -match "gcloud_daemon\.py" } |
@@ -81,4 +83,4 @@ if ($root) {
     $proc.WaitForExit()
     Write-Host "Weasel redeployed (exit $($proc.ExitCode))"
 }
-if ($Interactive -and $msg.ContainsKey("uninstall_done")) { Write-Host ""; Write-Host $msg["uninstall_done"] }
+if ($Interactive -and $msg.ContainsKey("uninstall_done")) { Write-Host ""; Write-Host $msg["uninstall_done"]; if ($msg.ContainsKey("uninstall_done_en")) { Write-Host $msg["uninstall_done_en"] -ForegroundColor DarkGray } }

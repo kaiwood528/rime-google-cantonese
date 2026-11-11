@@ -27,8 +27,13 @@ param(
     [switch]$NoDeploy
 )
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"  # Invoke-WebRequest is very slow with the progress bar
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rime = Join-Path $env:APPDATA "Rime"
+# Weasel 0.16+ can move the user folder; rime-gcloud.exe reads the same registry value.
+$customDir = (Get-ItemProperty "HKCU:\Software\Rime\Weasel" -ErrorAction SilentlyContinue).RimeUserDir
+if ($customDir) { $rime = [Environment]::ExpandEnvironmentVariables($customDir) }
 $utf8 = New-Object System.Text.UTF8Encoding $false
 $marker = "rime-google-cantonese"
 $programDir = Join-Path $env:LOCALAPPDATA "Programs\rime-google-cantonese"
@@ -45,18 +50,37 @@ if (Test-Path $msgFile) {
     }
 }
 function T([string]$key) { if ($msg.ContainsKey($key)) { return $msg[$key] } return $key }
+# Chinese and English on one line (prompts, error messages).
+function TB([string]$key) {
+    $en = $key + "_en"
+    if ($msg.ContainsKey($en)) { return (T $key) + " / " + $msg[$en] }
+    return (T $key)
+}
+# Chinese line, then the English line in grey. Extra arguments fill {0}, {1}...
+function Say([string]$key) {
+    $fmt = $args
+    $zh = T $key
+    if ($fmt.Count -gt 0) { $zh = $zh -f $fmt }
+    Write-Host $zh
+    $en = $key + "_en"
+    if ($msg.ContainsKey($en)) {
+        $line = $msg[$en]
+        if ($fmt.Count -gt 0) { $line = $line -f $fmt }
+        Write-Host $line -ForegroundColor DarkGray
+    }
+}
 
 function Ask-YesNo([string]$key) {
-    $a = Read-Host (T $key)
+    $a = Read-Host (TB $key)
     return ($a -eq "" -or $a -match '^[Yy]')
 }
 
 function Ask-Choice([string]$question, [string[]]$options) {
     Write-Host ""
-    Write-Host (T $question)
-    foreach ($o in $options) { Write-Host (T $o) }
+    Say $question
+    foreach ($o in $options) { Say $o }
     while ($true) {
-        $a = Read-Host (T "choice")
+        $a = Read-Host (TB "choice")
         $n = 0
         if ([int]::TryParse($a, [ref]$n) -and $n -ge 1 -and $n -le $options.Count) { return $n }
     }
@@ -126,6 +150,43 @@ function Add-SchemaToList([string]$id) {
     }
 }
 
+# Download a Rime schema repository from GitHub and copy its schema files into the user folder,
+# like plum does. (Weasel's bundled rime-install.bat assumes a "master" branch and silently
+# installs nothing for repositories that use "main", such as CanCLID/rime-loengfan.)
+function Install-RimePackage([string]$repo) {
+    $name = ($repo -split '/')[1]
+    $work = Join-Path $env:TEMP ("rgc-" + $name)
+    $zip = "$work.zip"
+    $ok = $false
+    foreach ($branch in @("main", "master")) {
+        try {
+            Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/$repo/archive/refs/heads/$branch.zip" -OutFile $zip
+            $ok = $true
+            break
+        } catch { }
+    }
+    if (-not $ok) { throw "Could not download $repo from GitHub." }
+    if (Test-Path $work) { Remove-Item $work -Recurse -Force }
+    Expand-Archive -Path $zip -DestinationPath $work -Force
+    $src = (Get-ChildItem $work -Directory | Select-Object -First 1).FullName
+    $count = 0
+    foreach ($f in Get-ChildItem $src -File | Where-Object { $_.Extension -eq ".yaml" -or $_.Extension -eq ".txt" }) {
+        Copy-Item $f.FullName (Join-Path $rime $f.Name) -Force
+        $count++
+    }
+    $oc = Join-Path $src "opencc"
+    if (Test-Path $oc) {
+        New-Item -ItemType Directory -Force (Join-Path $rime "opencc") | Out-Null
+        foreach ($f in Get-ChildItem $oc -File | Where-Object { @(".json", ".ocd", ".ocd2", ".txt") -contains $_.Extension }) {
+            Copy-Item $f.FullName (Join-Path $rime "opencc\$($f.Name)") -Force
+            $count++
+        }
+    }
+    Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item $zip -Force -ErrorAction SilentlyContinue
+    Write-Host "installed $repo ($count files)"
+}
+
 function Stop-Daemons {
     Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
         Where-Object { $_.CommandLine -match "gcloud_daemon\.py" } |
@@ -138,7 +199,7 @@ function Stop-Daemons {
 # ------------------------------------------------------------------ main
 
 try {
-    if ($Interactive) { Write-Host ""; Write-Host (T "title"); Write-Host "" }
+    if ($Interactive) { Write-Host ""; Say "title"; Write-Host "" }
 
     # Files from a downloaded ZIP carry the "from the internet" mark; drop it for our own files.
     try { Get-ChildItem $here -Recurse -File | Unblock-File } catch { }
@@ -147,46 +208,48 @@ try {
     $script:root = Get-WeaselRoot
     if (-not $script:root) {
         if ($Interactive) {
-            Write-Host (T "weasel_missing")
+            Say "weasel_missing"
             if ((Get-Command winget -ErrorAction SilentlyContinue) -and (Ask-YesNo "weasel_ask")) {
                 & winget install --id Rime.Weasel -e --source winget --accept-package-agreements --accept-source-agreements
                 $script:root = Get-WeaselRoot
             }
         }
-        if (-not $script:root) { throw (T "weasel_manual") }
+        if (-not $script:root) { throw (TB "weasel_manual") }
     }
     $root = $script:root
     $weaselVersion = (Get-Item (Join-Path $root "WeaselServer.exe")).VersionInfo.ProductVersion
-    Write-Host ((T "weasel_version") -f $weaselVersion)
+    Say "weasel_version" $weaselVersion
     New-Item -ItemType Directory -Force $rime | Out-Null
 
     # 0b. The plugin patches the Cantonese schema from rime-cantonese, which Weasel does not bundle.
     if (-not (Test-Schema "jyut6ping3")) {
         if ($Interactive) {
-            Write-Host (T "schema_missing")
+            Say "schema_missing"
             if (Ask-YesNo "schema_ask") {
-                Write-Host (T "schema_installing")
-                $pkgs = @("rime/rime-cantonese", "CanCLID/rime-loengfan")
-                foreach ($dep in @(@("luna_pinyin", "rime/rime-luna-pinyin"), @("stroke", "rime/rime-stroke"), @("cangjie5", "rime/rime-cangjie"))) {
+                Say "schema_installing"
+                # jyut6ping3 lists these schemas as dependencies (reverse lookup by Mandarin
+                # pinyin, loengfan, stroke and cangjie); Weasel usually bundles all but loengfan.
+                $pkgs = @("rime/rime-cantonese")
+                foreach ($dep in @(@("loengfan", "CanCLID/rime-loengfan"), @("luna_pinyin", "rime/rime-luna-pinyin"),
+                                   @("stroke", "rime/rime-stroke"), @("cangjie5", "rime/rime-cangjie"))) {
                     if (-not (Test-Schema $dep[0])) { $pkgs += $dep[1] }
                 }
-                # Weasel ships this downloader (curl + 7z); it copies the files into the Rime user folder.
-                & (Join-Path $root "rime-install.bat") @pkgs
+                foreach ($p in $pkgs) { Install-RimePackage $p }
             }
         }
-        if (-not (Test-Schema "jyut6ping3")) { throw (T "schema_manual") }
+        if (-not (Test-Schema "jyut6ping3")) { throw (TB "schema_manual") }
     }
 
     # 0c. Questions
     if ($Interactive) {
         $Yale = ((Ask-Choice "q_scheme" @("scheme_1", "scheme_2")) -eq 2)
         Write-Host ""
-        Write-Host (T "privacy")
+        Say "privacy"
         $Mode = @("rime_first", "rime_slot", "cloud_only")[(Ask-Choice "q_mode" @("mode_1", "mode_2", "mode_3")) - 1]
         $Autostart = $true
         $AddToSchemaList = $true
         Write-Host ""
-        Write-Host (T "installing")
+        Say "installing"
     }
 
     # 1. Lua module
@@ -315,15 +378,15 @@ try {
 
     if ($Interactive) {
         Write-Host ""
-        Write-Host (T "done")
-        Write-Host (T ("done_" + $Mode))
+        Say "done"
+        Say ("done_" + $Mode)
         $schemaKey = if ($Yale) { "name_yale" } else { "name_jyutping" }
-        Write-Host ((T "done_switch") -f (T $schemaKey))
+        Say "done_switch" (T $schemaKey)
     }
 } catch {
     if ($Interactive) {
         Write-Host ""
-        Write-Host ((T "failed") + $_.Exception.Message) -ForegroundColor Red
+        Write-Host ((TB "failed") + " " + $_.Exception.Message) -ForegroundColor Red
         exit 1
     }
     throw

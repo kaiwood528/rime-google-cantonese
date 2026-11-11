@@ -88,10 +88,14 @@ librime-lua 不能上網，亦沒有計時器，所以插件透過 `%APPDATA%\Ri
 `setup.cmd` 以 `-Interactive` 執行 `install.ps1`：
 
 1. 找不到小狼毫時，問用家是否用 `winget install Rime.Weasel` 安裝。
-2. 找不到 `jyut6ping3.schema.yaml` 時，問用家是否用小狼毫附帶的 `rime-install.bat`（curl＋7z）下載 `rime/rime-cantonese` 和 `CanCLID/rime-loengfan`；缺少 `luna_pinyin`、`stroke`、`cangjie5` 也會一併下載。
+2. 找不到 `jyut6ping3.schema.yaml` 時，問用家是否下載 `rime/rime-cantonese`；缺少 `loengfan`、`luna_pinyin`、`stroke`、`cangjie5`（`jyut6ping3` 的依賴方案）也會一併下載。安裝程式自己用 `Invoke-WebRequest` 下載 GitHub 的 ZIP（先試 `main` 分支，再試 `master`），把 `*.yaml`、`*.txt` 和 `opencc\` 檔案複製到用戶資料夾。不用小狼毫附帶的 `rime-install.bat`，因為它假設分支叫 `master`，遇到 `CanCLID/rime-loengfan`（`main` 分支）會下載了卻甚麼都沒裝。
 3. 問拼音（粵拼／耶魯）和用法（`rime_first`／`rime_slot`／`cloud_only`），然後以 `-Autostart -AddToSchemaList` 安裝。
 
-`install.ps1` 和 `uninstall.ps1` 只可用 ASCII 字元，問答的中文字串放在 `setup/messages.txt`（UTF-8）。
+`install.ps1`、`uninstall.ps1` 和 `diagnose.ps1` 只可用 ASCII 字元，問答的中英文字串放在 `setup/messages.txt`（UTF-8）：`key=中文`，`key_en=English`。`Say` 先印中文、再以灰色印英文；提示和錯誤訊息用 `TB` 合成「中文 / English」一行。
+
+小狼毫 0.16 起可以更改用戶資料夾（`HKCU\Software\Rime\Weasel\RimeUserDir`）。Lua 用 `rime_api.get_user_data_dir()`，安裝程式、移除程式、診斷工具和 `rime-gcloud.exe` 都讀取同一個登錄值，沒有設定時才用 `%APPDATA%\Rime`。
+
+`diagnose.ps1`（`diagnose.cmd`）把系統、小狼毫、方案、插件設定、背景程式狀態、Google 連線測試和最近的記錄寫到桌面的 `rime-google-cantonese-report.txt`，並把用戶資料夾路徑、Windows 用戶名和電腦名稱換成佔位字。全新電腦的測試步驟見 [TESTING.md](TESTING.md)。
 
 | 參數 | 作用 |
 |---|---|
@@ -128,7 +132,7 @@ librime-lua 不能上網，亦沒有計時器，所以插件透過 `%APPDATA%\Ri
 | `rime/schema.custom.yaml` | schema patch 及設定範本 |
 | `rime/jyut6ping3_yale.schema.yaml` | 耶魯拼音方案 |
 | `daemon/RimeGcloud.cs` | 背景查詢程式（安裝時編譯成 `rime-gcloud.exe`） |
-| `setup.cmd`、`uninstall.cmd` | 雙擊安裝／移除 |
+| `setup.cmd`、`uninstall.cmd`、`diagnose.cmd` | 雙擊安裝／移除／產生診斷報告 |
 | `install.ps1`、`uninstall.ps1` | 安裝及移除（只可用 ASCII 字元：Windows PowerShell 5.1 會以 ANSI 讀取沒有 BOM 的腳本） |
 | `setup/messages.txt` | 安裝及移除程式的中文字串 |
-| `web/index.html` | 「日」字點打？選擇頁 |
+| `web/index.html` | 「日」字點打？選擇頁（中英切換：瀏覽器語言決定預設，選擇記在 `localStorage` 的 `rgc-lang`） |

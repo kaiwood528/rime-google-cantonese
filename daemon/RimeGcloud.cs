@@ -57,8 +57,7 @@ namespace RimeGcloud
 
     static class Program
     {
-        static readonly string AppDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Rime", "gcloud");
+        static readonly string AppDir = Path.Combine(RimeUserDir(), "gcloud");
         static readonly string CacheDir = Path.Combine(AppDir, "cache");
         static readonly string RequestFile = Path.Combine(AppDir, "request.txt");
         static readonly string HeartbeatFile = Path.Combine(AppDir, "heartbeat.txt");
@@ -611,6 +610,22 @@ namespace RimeGcloud
         }
 
         // ------------------------------------------------------------ helpers
+
+        // Weasel 0.16+ lets users move the Rime user folder (HKCU\Software\Rime\Weasel\RimeUserDir);
+        // the Lua side uses rime_api.get_user_data_dir(), so we must look in the same place.
+        static string RimeUserDir()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Rime\Weasel"))
+                {
+                    var dir = key == null ? null : key.GetValue("RimeUserDir") as string;
+                    if (!string.IsNullOrEmpty(dir)) return Environment.ExpandEnvironmentVariables(dir);
+                }
+            }
+            catch (Exception) { }
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Rime");
+        }
 
         static string Clean(string s)
         {

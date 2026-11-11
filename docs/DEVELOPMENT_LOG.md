@@ -10,6 +10,8 @@
 | 2026-11-05 | Claude Opus 5.5（`claude-opus-5-5`） | 實測 CPU、記憶體和流量 |
 | 2026-11-11 | Claude Fable 5.2（`claude-fable-5-2`） | 開源計劃；`rime_slot` 模式（第6格固定是 Google 首選） |
 | 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 開源準備：`prefetch: auto`（`rime_first` 只在雙 Shift 才查詢）和「正在打字」連線保持；授權、鳴謝、公開版說明文件 |
+| 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 選擇頁重寫：中英切換，分三類讀者（已會拼音打字／識講未打過／學緊廣東話）重寫文案，加常見問題；安裝程式問答改為中英對照 |
+| 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 全新電腦測試準備：支援小狼毫 0.16+ 的自訂用戶資料夾；安裝程式自行下載粵語方案（取代 `rime-install.bat`）；`diagnose.cmd` 診斷報告；`docs/TESTING.md` 測試清單 |
 | 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 一鍵安裝：背景程式由 Python 改寫成 C#（安裝時用內置 `csc.exe` 編譯，`FileSystemWatcher` 取代輪詢）；`setup.cmd` 問答式安裝（自動安裝小狼毫及 rime-cantonese、加入方案清單）；`uninstall.cmd` |
 
 ## 設計決定
@@ -25,6 +27,8 @@
 | 耶魯方案做成獨立 schema，並刪掉括號內的粵拼 | 可與粵拼並存；括號顯示粵拼會令新手混亂 |
 | 第6格的 Google 候選即使重複也照樣顯示 | 用家要一眼看到 Google 的首選；filter 因此排在 `uniquifier` 之後 |
 | 背景程式用 C# 原始碼、安裝時才編譯 | 每部 Windows 10/11 都有 .NET Framework 4.x 和 `csc.exe`；用家不用裝 Python，也不用下載未簽署的 `.exe`（避免 SmartScreen 警告） |
+| 選擇頁先問「你而家點樣打中文」，再分流 | 原本假設讀者已懂粵拼；改為照顧未用過拼音的人和學廣東話的外國人。已會拼音打字 → 問「日」字拼法 → 小狼毫為主；識講未打過 → 比較耶魯和粵拼 → Google 為主；學緊廣東話 → 問課本用邊套（唔肯定就推薦粵拼）→ Google 為主 |
+| 選擇頁和安裝程式都要中英對照 | 外國學習者要看懂問題；安裝程式的選項號碼和選擇頁一致 |
 | 程式裝在 `%LOCALAPPDATA%\Programs\rime-google-cantonese` | 用家安裝後可以刪掉下載的資料夾；不需要管理員權限 |
 
 ## 容易出錯的地方
@@ -37,6 +41,8 @@
 - **安裝及移除腳本只可用 ASCII 字元**：Windows PowerShell 5.1 會以 ANSI 讀取沒有 BOM 的腳本，中文註解會令腳本無法解析。
 - **`csc.exe` 只支援 C# 5**：不可用字串插值（`$""`）、`?.`、`nameof`、expression-bodied 成員等新語法。
 - **沒有 `TargetFramework` 屬性的 .NET 程式會用 4.0 的舊預設值**（包括 TLS 版本），所以 `RimeGcloud.cs` 加了該屬性並明確開啟 TLS 1.2／1.3。
+- **小狼毫附帶的 `rime-install.bat` 假設 GitHub 分支叫 `master`**：`CanCLID/rime-loengfan` 用 `main`，下載的 ZIP 根目錄是 `rime-loengfan-main`，腳本找不到 `rime-loengfan-master` 資料夾，結果甚麼都沒裝（只印出「The system cannot find the path specified」）。安裝程式因此自己下載。
+- **小狼毫 0.16 起可以把用戶資料夾移到別處**（`HKCU\Software\Rime\Weasel\RimeUserDir`）；背景程式必須和 Lua 看同一個資料夾，否則雙方的檔案對不上。
 - **Windows 的 CPU 時間以約15.6毫秒為單位計算**，量度背景程式閒置用量時要用較長時間（例如一分鐘）。
 - **小狼毫崩潰紀錄**：2026-11-04 測試雙擊 Shift 期間，WeaselServer 0.15.0 在 `rime.dll` 崩潰過一次（0xc0000005），原因未能確定，可能與連按五下 Shift 觸發的相黏鍵提示有關。插件已避免使用 `update_notifier:connect`。
 
@@ -44,5 +50,5 @@
 
 - 只在小狼毫 0.15.0 測試過；未在其他版本或全新安裝的電腦上測試。
 - `rime_first` 新的「只在雙 Shift 查詢」流程未在實際畫面測試（開發者當時使用 `rime_slot`）。
-- `setup.cmd` 的問答流程已由開發者在已安裝小狼毫和 rime-cantonese 的電腦上測試正常（2026-11-11，粵拼＋`rime_slot`）；**自動安裝小狼毫和 rime-cantonese 的兩個步驟未實際執行過**。修改方案清單的函數曾用四種檔案格式測試。
+- `setup.cmd` 的問答流程已由開發者在已安裝小狼毫和 rime-cantonese 的電腦上測試正常（2026-11-11，粵拼＋`rime_slot`）。下載粵語方案的函數曾在暫存資料夾測試（5個套件、約16秒），但**未在全新電腦上經 `setup.cmd` 完整執行過；用 winget 自動安裝小狼毫亦未執行過**。修改方案清單的函數曾用四種檔案格式測試。
 - 未在 winget 目前提供的小狼毫 0.17.x 上測試。

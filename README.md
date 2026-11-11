@@ -83,6 +83,10 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -Mode cloud_only
 - 背景程式 `rime-gcloud.exe` 會模擬按下 `F24` 鍵，個別防毒軟件可能因此提示，可以把它加入信任清單。
 - 耶魯方案不支援耶魯的聲調寫法（例如 `yaht` 的 h）；這類輸入可以交給 Google，Google 認得。
 
+## 回報問題
+
+雙擊 `diagnose.cmd`，桌面會出現 `rime-google-cantonese-report.txt`。報告只包含版本、設定、檔案檢查和最近的記錄，不包含你打過的內容，Windows 用戶名和電腦名稱亦已隱藏。回報問題時請附上這個檔案。
+
 ## 授權與鳴謝
 
 - 本專案程式碼以 [MIT](LICENSE) 授權。
