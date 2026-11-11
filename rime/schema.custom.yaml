@@ -23,7 +23,7 @@ patch:
     double_shift_ms: 500    # 兩下 Shift 之間最多相隔幾耐（毫秒）
     trigger: none           # 另外指定單鍵觸發（例如 Tab）；none = 不用
     push_refresh: true      # rime_slot／cloud_first／cloud_only：Google 結果到咗就由背景程式發 F24 提示刷新
-    refresh_key: F24        # 背景程式用嘅刷新鍵（要同 gcloud_daemon.py 一致）
+    refresh_key: F24        # 背景程式用嘅刷新鍵（要同 daemon/RimeGcloud.cs 嘅 VK_F24 一致）
     timeout_ms: 1500        # 雙 Shift 要求雲端候選後，最多等幾耐（毫秒）
     prefetch: auto          # auto = rime_first 只喺雙 Shift 先查詢；其他模式打字途中預先查詢
                             # true / false = 強制開／關

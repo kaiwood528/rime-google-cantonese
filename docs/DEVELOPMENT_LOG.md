@@ -10,6 +10,7 @@
 | 2026-11-05 | Claude Opus 5.5（`claude-opus-5-5`） | 實測 CPU、記憶體和流量 |
 | 2026-11-11 | Claude Fable 5.2（`claude-fable-5-2`） | 開源計劃；`rime_slot` 模式（第6格固定是 Google 首選） |
 | 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 開源準備：`prefetch: auto`（`rime_first` 只在雙 Shift 才查詢）和「正在打字」連線保持；授權、鳴謝、公開版說明文件 |
+| 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 一鍵安裝：背景程式由 Python 改寫成 C#（安裝時用內置 `csc.exe` 編譯，`FileSystemWatcher` 取代輪詢）；`setup.cmd` 問答式安裝（自動安裝小狼毫及 rime-cantonese、加入方案清單）；`uninstall.cmd` |
 
 ## 設計決定
 
@@ -23,6 +24,8 @@
 | `cloud_only` 未有 Google 結果時仍顯示小狼毫候選 | 候選欄空白時按空格會把英文字母直接上屏 |
 | 耶魯方案做成獨立 schema，並刪掉括號內的粵拼 | 可與粵拼並存；括號顯示粵拼會令新手混亂 |
 | 第6格的 Google 候選即使重複也照樣顯示 | 用家要一眼看到 Google 的首選；filter 因此排在 `uniquifier` 之後 |
+| 背景程式用 C# 原始碼、安裝時才編譯 | 每部 Windows 10/11 都有 .NET Framework 4.x 和 `csc.exe`；用家不用裝 Python，也不用下載未簽署的 `.exe`（避免 SmartScreen 警告） |
+| 程式裝在 `%LOCALAPPDATA%\Programs\rime-google-cantonese` | 用家安裝後可以刪掉下載的資料夾；不需要管理員權限 |
 
 ## 容易出錯的地方
 
@@ -32,10 +35,14 @@
 - **`jyut6ping3_ipa` 會繼承 `jyut6ping3.custom.yaml`**（`__include` 會套用被引用資源的自動 patch）；另外建立它的 custom 檔會令元件加入兩次。耶魯方案同樣會繼承，所以只需覆寫 `gcloud/*`。
 - **耶魯方案要有自己的 `translator/prism`**，否則會和粵拼方案互相覆蓋。
 - **安裝及移除腳本只可用 ASCII 字元**：Windows PowerShell 5.1 會以 ANSI 讀取沒有 BOM 的腳本，中文註解會令腳本無法解析。
+- **`csc.exe` 只支援 C# 5**：不可用字串插值（`$""`）、`?.`、`nameof`、expression-bodied 成員等新語法。
+- **沒有 `TargetFramework` 屬性的 .NET 程式會用 4.0 的舊預設值**（包括 TLS 版本），所以 `RimeGcloud.cs` 加了該屬性並明確開啟 TLS 1.2／1.3。
+- **Windows 的 CPU 時間以約15.6毫秒為單位計算**，量度背景程式閒置用量時要用較長時間（例如一分鐘）。
 - **小狼毫崩潰紀錄**：2026-11-04 測試雙擊 Shift 期間，WeaselServer 0.15.0 在 `rime.dll` 崩潰過一次（0xc0000005），原因未能確定，可能與連按五下 Shift 觸發的相黏鍵提示有關。插件已避免使用 `update_notifier:connect`。
 
 ## 未驗證
 
 - 只在小狼毫 0.15.0 測試過；未在其他版本或全新安裝的電腦上測試。
 - `rime_first` 新的「只在雙 Shift 查詢」流程未在實際畫面測試（開發者當時使用 `rime_slot`）。
-- 背景程式仍需要 Python；計劃改為免安裝的 Windows 程式，並改用檔案變動通知取代輪詢。
+- `setup.cmd` 的問答流程已由開發者在已安裝小狼毫和 rime-cantonese 的電腦上測試正常（2026-11-11，粵拼＋`rime_slot`）；**自動安裝小狼毫和 rime-cantonese 的兩個步驟未實際執行過**。修改方案清單的函數曾用四種檔案格式測試。
+- 未在 winget 目前提供的小狼毫 0.17.x 上測試。

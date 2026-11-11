@@ -1,3 +1,4 @@
 # Keep line endings stable; PowerShell and Lua work with either, YAML/Markdown stay LF in the repo.
 * text=auto eol=lf
 *.ps1 text eol=crlf
+*.cmd text eol=crlf

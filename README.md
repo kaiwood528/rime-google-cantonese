@@ -34,37 +34,28 @@
 ## 系統要求
 
 - Windows 10 或 11
-- [小狼毫](https://rime.im/download/) 0.15 或以上（目前只在 0.15.0 測試過）
-- 粵語方案 [rime-cantonese](https://github.com/rime/rime-cantonese)（小狼毫本身沒有附帶）
-- [Python 3](https://www.python.org/downloads/windows/)（暫時需要；計劃改為免安裝）
+- [小狼毫](https://rime.im/download/) 0.15 或以上（目前只在 0.15.0 測試過）。未安裝的話，安裝程式可以用 winget 代你安裝。
+- 粵語方案 [rime-cantonese](https://github.com/rime/rime-cantonese)。小狼毫本身沒有附帶，未安裝的話，安裝程式可以代你下載。
+
+不需要另外安裝 Python 或其他軟件：背景程式會在安裝時用 Windows 內置的 .NET Framework 編譯。
 
 ## 安裝
 
-1. 安裝小狼毫和 rime-cantonese，確認可以用「粵語拼音」打字。
-2. 下載本專案（Code → Download ZIP）並解壓。
-3. 在解壓後的資料夾打開 PowerShell，按你想要的配搭執行其中一行：
+1. 下載本專案（Code → Download ZIP）並解壓。
+2. 雙擊 `setup.cmd`。Windows 可能先提示「這個檔案來自互聯網」，按「執行」。
+3. 回答兩條問題：「日」字打 `jat` 還是 `yat`，以及想用哪種用法。
 
-   ```bash
-   powershell -ExecutionPolicy Bypass -File install.ps1 -Mode rime_first -Autostart
-   ```
+安裝程式會檢查小狼毫和粵語方案（缺少就問你要不要自動安裝）、複製插件、編譯並啟動背景程式、設定隨 Windows 登入自動啟動、把所選方案放到方案選單最前，最後重新部署小狼毫。
 
-   ```bash
-   powershell -ExecutionPolicy Bypass -File install.ps1 -Mode rime_slot -Autostart
-   ```
+也可以不經問答，直接用命令安裝，例如：
 
-   ```bash
-   powershell -ExecutionPolicy Bypass -File install.ps1 -Mode cloud_only -Autostart
-   ```
+```bash
+powershell -ExecutionPolicy Bypass -File install.ps1 -Mode rime_first -Autostart -AddToSchemaList
+```
 
-   用耶魯拼音的話，加上 `-Yale`：
-
-   ```bash
-   powershell -ExecutionPolicy Bypass -File install.ps1 -Yale -Mode rime_first -Autostart
-   ```
-
-4. 用耶魯拼音的話，在小狼毫「輸入法設定」勾選「粵語拼音（耶魯）」。
-
-安裝程式會複製插件、設定小狼毫、啟動背景程式，然後重新部署小狼毫。`-Autostart` 會令背景程式隨 Windows 登入自動啟動。
+```bash
+powershell -ExecutionPolicy Bypass -File install.ps1 -Yale -Mode cloud_only -Autostart -AddToSchemaList
+```
 
 ## 用法
 
@@ -79,11 +70,9 @@
 powershell -ExecutionPolicy Bypass -File install.ps1 -Mode cloud_only
 ```
 
-```bash
-powershell -ExecutionPolicy Bypass -File uninstall.ps1
-```
+要移除，雙擊 `uninstall.cmd`。它會還原本插件的所有改動，小狼毫和粵語拼音方案會保留。
 
-不加 `-Mode` 重新執行 `install.ps1`（例如更新版本後）會保留目前的模式。`uninstall.ps1` 會還原所有改動，加 `-PurgeCache` 會連快取一併刪除。
+不加 `-Mode` 重新執行 `install.ps1`（例如更新版本後）會保留目前的模式。`uninstall.ps1` 加 `-PurgeCache` 會連快取一併刪除。
 
 ## 已知限制
 
@@ -91,6 +80,7 @@ powershell -ExecutionPolicy Bypass -File uninstall.ps1
 - 刷新那一刻，選字游標會回到第一個候選。
 - 連按兩下左 Shift 時，狀態圖示可能閃一下「英」。
 - 連按五下 Shift 會觸發 Windows「相黏鍵」提示，建議在「設定 → 協助工具 → 鍵盤」關閉相黏鍵的快速鍵。
+- 背景程式 `rime-gcloud.exe` 會模擬按下 `F24` 鍵，個別防毒軟件可能因此提示，可以把它加入信任清單。
 - 耶魯方案不支援耶魯的聲調寫法（例如 `yaht` 的 h）；這類輸入可以交給 Google，Google 認得。
 
 ## 授權與鳴謝

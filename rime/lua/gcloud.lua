@@ -10,7 +10,7 @@
 -- 雙 Shift 只對當時嗰組拼音生效（再按一次雙 Shift 會切返），下一輪組字回復預設。
 --
 -- gcloud/prefetch 預設 auto：rime_first 只喺雙 Shift 先把拼音送去 Google；其他模式要邊打邊查。
--- 查詢時會把拼音寫入 %APPDATA%\Rime\gcloud\request.txt，由背景程式 gcloud_daemon.py
+-- 查詢時會把拼音寫入 %APPDATA%\Rime\gcloud\request.txt，由背景程式 rime-gcloud.exe（daemon/RimeGcloud.cs）
 -- 向 Google 查詢並存入 cache\。cloud_first／cloud_only 模式下，背景程式收到結果後會發送 F24 鍵，
 -- 本處理器截住 F24 就刷新候選，所以 Google 結果到咗會自己出現，唔使再按鍵。
 -- librime-lua 本身不能上網，所以透過檔案同背景程式溝通。
@@ -38,7 +38,7 @@ local last_ping = 0
 local PING_EVERY_SECONDS = 20
 local override_query = nil -- 用雙 Shift 反轉咗預設模式嘅拼音
 
--- eng = gcloud/engine（jyutping／yale），要同 gcloud_daemon.py 嘅 cache_path 一致
+-- eng = gcloud/engine（jyutping／yale），要同 daemon/RimeGcloud.cs 嘅 CachePath 一致
 local function cache_file(q, eng)
   if eng == nil or eng == "jyutping" then return CACHE_PREFIX .. q .. ".txt" end
   return CACHE_PREFIX .. eng .. "_" .. q .. ".txt"

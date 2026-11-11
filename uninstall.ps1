@@ -2,15 +2,32 @@
 # Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less scripts as ANSI.
 #   powershell -ExecutionPolicy Bypass -File uninstall.ps1             remove and redeploy
 #   powershell -ExecutionPolicy Bypass -File uninstall.ps1 -PurgeCache also delete the cloud cache
-param([switch]$PurgeCache)
+#   uninstall.cmd                                                     double-click version
+# Weasel and the rime-cantonese schema are left installed.
+param([switch]$PurgeCache, [switch]$Interactive)
 $ErrorActionPreference = "Stop"
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rime = Join-Path $env:APPDATA "Rime"
 $utf8 = New-Object System.Text.UTF8Encoding $false
 $marker = "rime-google-cantonese"
+$programDir = Join-Path $env:LOCALAPPDATA "Programs\rime-google-cantonese"
+
+$msg = @{}
+$msgFile = Join-Path $here "setup\messages.txt"
+if (Test-Path $msgFile) {
+    foreach ($line in [System.IO.File]::ReadAllLines($msgFile, $utf8)) {
+        if ($line -match '^([a-z0-9_]+)=(.*)$') { $msg[$Matches[1]] = $Matches[2] }
+    }
+}
+if ($Interactive -and $msg.ContainsKey("uninstall_title")) { Write-Host ""; Write-Host $msg["uninstall_title"]; Write-Host "" }
 
 Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
     Where-Object { $_.CommandLine -match "gcloud_daemon\.py" } |
-    ForEach-Object { Stop-Process -Id $_.ProcessId -Force; Write-Host "stopped daemon $($_.ProcessId)" }
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force; Write-Host "stopped old Python daemon $($_.ProcessId)" }
+Get-Process rime-gcloud -ErrorAction SilentlyContinue |
+    ForEach-Object { Stop-Process -Id $_.Id -Force; Write-Host "stopped daemon $($_.Id)" }
+Start-Sleep -Milliseconds 300
+if (Test-Path $programDir) { Remove-Item $programDir -Recurse -Force; Write-Host "removed $programDir" }
 
 $lnk = Join-Path ([Environment]::GetFolderPath("Startup")) "Rime Google Cantonese.lnk"
 if (Test-Path $lnk) { Remove-Item $lnk; Write-Host "autostart removed" }
@@ -22,7 +39,17 @@ Get-ChildItem $rime -Filter "*.custom.yaml" | ForEach-Object {
 $yale = Join-Path $rime "jyut6ping3_yale.schema.yaml"
 if ((Test-Path $yale) -and ([System.IO.File]::ReadAllText($yale, $utf8) -match $marker)) {
     Remove-Item $yale
-    Write-Host "removed jyut6ping3_yale.schema.yaml (also remove it from schema_list in default.custom.yaml)"
+    Write-Host "removed jyut6ping3_yale.schema.yaml"
+    $dc = Join-Path $rime "default.custom.yaml"
+    if (Test-Path $dc) {
+        $text = [System.IO.File]::ReadAllText($dc, $utf8)
+        $clean = [regex]::Replace($text, '(?m)^[ \t]*-[ \t]*\{?[ \t]*schema:[ \t]*jyut6ping3_yale[ \t]*\}?[ \t]*\r?\n', '')
+        if ($clean -ne $text) {
+            Copy-Item $dc ("$dc.bak-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+            [System.IO.File]::WriteAllText($dc, $clean, $utf8)
+            Write-Host "default.custom.yaml: removed jyut6ping3_yale from schema_list"
+        }
+    }
 }
 
 $rimeLua = Join-Path $rime "rime.lua"
@@ -54,3 +81,4 @@ if ($root) {
     $proc.WaitForExit()
     Write-Host "Weasel redeployed (exit $($proc.ExitCode))"
 }
+if ($Interactive -and $msg.ContainsKey("uninstall_done")) { Write-Host ""; Write-Host $msg["uninstall_done"] }

@@ -299,7 +299,8 @@ footer { display: grid; gap: 8px; font-size: 14px; color: var(--muted); border-t
 (function () {
   "use strict";
 
-  var BASE_CMD = "powershell -ExecutionPolicy Bypass -File install.ps1";
+  // setup.cmd 問答的答案：拼音（1 = jat 粵拼，2 = yat 耶魯），用法（1 = 小狼毫為主，3 = Google 為主）
+  var MODE_ANSWER = { rime_first: "1）小狼毫為主", cloud_only: "3）Google 為主" };
 
   var ROUTES = {
     yale_rime: {
@@ -316,7 +317,7 @@ footer { display: grid; gap: 8px; font-size: 14px; color: var(--muted); border-t
         "平時打「去」是 hui、「水」是 sui 這類港式拼法，小狼毫未必認得，按兩下左 <kbd>Shift</kbd> 交俾 Google 就得。"
       ],
       yale: true, mode: "rime_first",
-      pick: "在小狼毫「輸入法設定」勾選「粵語拼音（耶魯）」，之後用 <kbd>Ctrl</kbd>+<kbd>`</kbd> 或 <kbd>F4</kbd> 切換到它。"
+      pick: "安裝程式會把「粵語拼音（耶魯）」放到方案選單最前；如果打出來不是粵語，按 <kbd>Ctrl</kbd>+<kbd>`</kbd> 或 <kbd>F4</kbd> 選擇它。"
     },
     jyut_rime: {
       title: "粵拼 · 小狼毫為主",
@@ -331,7 +332,7 @@ footer { display: grid; gap: 8px; font-size: 14px; color: var(--muted); border-t
         "搵唔到想要的字或詞，連按兩下左 <kbd>Shift</kbd>，約 0.3 秒後 Google 候選（☁）會排到最前。再按兩下就收返。"
       ],
       yale: false, mode: "rime_first",
-      pick: "在小狼毫「輸入法設定」勾選「粵語拼音」，之後用 <kbd>Ctrl</kbd>+<kbd>`</kbd> 或 <kbd>F4</kbd> 切換到它。"
+      pick: "安裝程式會把「粵語拼音」放到方案選單最前；如果打出來不是粵語，按 <kbd>Ctrl</kbd>+<kbd>`</kbd> 或 <kbd>F4</kbd> 選擇它。"
     },
     yale_cloud: {
       title: "耶魯拼音 · Google 為主",
@@ -347,7 +348,7 @@ footer { display: grid; gap: 8px; font-size: 14px; color: var(--muted); border-t
         "斷線時會自動用返小狼毫候選。"
       ],
       yale: true, mode: "cloud_only",
-      pick: "在小狼毫「輸入法設定」勾選「粵語拼音（耶魯）」，之後用 <kbd>Ctrl</kbd>+<kbd>`</kbd> 或 <kbd>F4</kbd> 切換到它。"
+      pick: "安裝程式會把「粵語拼音（耶魯）」放到方案選單最前；如果打出來不是粵語，按 <kbd>Ctrl</kbd>+<kbd>`</kbd> 或 <kbd>F4</kbd> 選擇它。"
     },
     jyut_cloud: {
       title: "粵拼 · Google 為主",
@@ -363,7 +364,7 @@ footer { display: grid; gap: 8px; font-size: 14px; color: var(--muted); border-t
         "斷線時會自動用返小狼毫候選。"
       ],
       yale: false, mode: "cloud_only",
-      pick: "在小狼毫「輸入法設定」勾選「粵語拼音」，之後用 <kbd>Ctrl</kbd>+<kbd>`</kbd> 或 <kbd>F4</kbd> 切換到它。"
+      pick: "安裝程式會把「粵語拼音」放到方案選單最前；如果打出來不是粵語，按 <kbd>Ctrl</kbd>+<kbd>`</kbd> 或 <kbd>F4</kbd> 選擇它。"
     }
   };
 
@@ -401,7 +402,7 @@ footer { display: grid; gap: 8px; font-size: 14px; color: var(--muted); border-t
 
   function renderResult(key) {
     var r = ROUTES[key];
-    var cmd = BASE_CMD + (r.yale ? " -Yale" : "") + " -Mode " + r.mode + " -Autostart";
+    var schemeAnswer = r.yale ? "2）yat（耶魯拼音）" : "1）jat（粵拼）";
     var pills = r.pills.map(function (p) { return '<span class="pill ' + p[0] + '">' + esc(p[1]) + "</span>"; }).join("");
     var html =
       '<div class="result-head"><p class="eyebrow">推薦配搭</p><h2>' + esc(r.title) + '</h2><div class="pills">' + pills +
@@ -410,32 +411,15 @@ footer { display: grid; gap: 8px; font-size: 14px; color: var(--muted); border-t
       '<p class="mock-note">☁ 候選是 Google 實際查詢結果；小狼毫候選只作示意。</p>' +
       '<ul class="usage">' + r.usage.map(function (u) { return "<li>" + u + "</li>"; }).join("") + "</ul>" +
       '<div class="install"><h3>安裝步驟</h3><ol class="steps">' +
-      '<li>安裝<a href="https://rime.im/download/" target="_blank" rel="noopener">小狼毫</a>（0.15 或以上）。</li>' +
-      '<li>安裝粵語方案 <a href="https://github.com/rime/rime-cantonese" target="_blank" rel="noopener">rime-cantonese</a>（小狼毫本身冇附帶，安裝方法見該頁說明）。</li>' +
-      '<li>安裝 <a href="https://www.python.org/downloads/windows/" target="_blank" rel="noopener">Python 3</a>（測試版的背景程式需要）。</li>' +
-      '<li>下載插件資料夾，在資料夾內打開 PowerShell，執行：' +
-      '<div class="cmd"><code id="cmd-text">' + esc(cmd) + '</code><button type="button" id="copy-btn">複製</button></div></li>' +
+      '<li>下載插件（GitHub 頁面 → Code → Download ZIP）並解壓。</li>' +
+      '<li>雙擊 <code>setup.cmd</code>。Windows 提示「檔案來自互聯網」時按「執行」。</li>' +
+      '<li>回答問題：「日」字揀 <strong>' + esc(schemeAnswer) + '</strong>，用法揀 <strong>' + esc(MODE_ANSWER[r.mode]) + '</strong>。</li>' +
       "<li>" + r.pick + "</li>" +
       "</ol>" +
-      '<p class="beta">測試版：插件未公開發佈，安裝步驟未在全新電腦上驗證。<code>-Autostart</code> 會令背景程式隨 Windows 登入自動啟動。</p></div>';
+      '<p class="beta">未裝<a href="https://rime.im/download/" target="_blank" rel="noopener">小狼毫</a>或粵語拼音方案也不要緊，安裝程式會問你要不要代你安裝。不需要另外安裝 Python。測試版：未在全新電腦上驗證。</p></div>';
     var box = $("#result");
     box.innerHTML = html;
     box.hidden = false;
-    $("#copy-btn").addEventListener("click", function () {
-      var btn = this;
-      var text = $("#cmd-text").textContent;
-      function selectFallback() {
-        var range = document.createRange();
-        range.selectNodeContents($("#cmd-text"));
-        var sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-        btn.textContent = "已選取，按 Ctrl+C";
-      }
-      try {
-        navigator.clipboard.writeText(text).then(function () { btn.textContent = "已複製"; }, selectFallback);
-      } catch (e) { selectFallback(); }
-    });
   }
 
   function render() {
