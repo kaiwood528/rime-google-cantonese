@@ -24,7 +24,7 @@ schema:
   description: |-
     粵拼方案加上耶魯拼音拼寫（j = 粵拼 z，ch = 粵拼 c，eu = 粵拼 eo/oe，y = 粵拼 j）
     拼寫補丁：https://github.com/CanCLID/rime-cantonese-schemes
-    唔支援耶魯聲調寫法（例如 yaht 嘅 h），聲調照用 v/x/q
+    不支援耶魯拼音的聲調寫法（例如 yaht 中的 h），聲調仍以 v/x/q 輸入
   dependencies:
     - luna_pinyin
     - loengfan
@@ -32,15 +32,15 @@ schema:
     - cangjie5
 
 __patch:
-  # 拼寫規則唔同，要用自己嘅 prism，唔好同 jyut6ping3 共用
+  # 拼寫規則不同，須使用獨立的 prism，不可與 jyut6ping3 共用
   translator/prism: jyut6ping3_yale
   speller/algebra/+:
     - derive/oe|eo/eu/                               # 信 seon -> seun
     - erase/j.*/                                     # 刪除原有 j 聲母，以免混淆
     - derive/^z/j/                                   # 渣 zaa  -> ja
     - derive/^c/ch/                                  # 叉 caa  -> cha
-  # 原補丁會喺輸入欄括號顯示對應粵拼（方便過渡去粵拼），呢度唔要：輸入欄只顯示自己打嘅耶魯拼法。
-  # 候選字旁邊嘅拼音提示（spelling_hints）本來係詞庫嘅粵拼，轉做耶魯寫法（聲調照用數字）。
+  # 原補丁會在輸入欄以括號顯示對應的粵拼（方便過渡至粵拼），本方案不採用：輸入欄只顯示用家輸入的耶魯拼法。
+  # 候選字旁的拼音提示（spelling_hints）原為詞庫的粵拼，在此轉換為耶魯拼法（聲調仍以數字表示）。
   translator/comment_format:
     - xform/(?<![a-z])jyu/yu/                        # 月 jyut -> yut，魚 jyu -> yu
     - xform/(?<![a-z])j/y/                           # 日 jat  -> yat

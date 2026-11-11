@@ -6,11 +6,13 @@
 
 | 日期 | 模型 | 工作 |
 |---|---|---|
-| 2026-11-04 | Claude Opus 5.5（`claude-opus-5-5`） | 插件初版（Lua 翻譯器／處理器、Python 背景程式、安裝及移除腳本）；改用 Google 粵拼引擎；自動啟動；雙擊左 Shift；`cloud_first` 和 F24 自動刷新；`cloud_only` filter；耶魯拼音方案及按方案選擇 Google 引擎；「日」字點打？選擇頁 |
+| 2026-11-04 | Claude Opus 5.5（`claude-opus-5-5`） | 插件初版（Lua 翻譯器／處理器、Python 背景程式、安裝及移除腳本）；改用 Google 粵拼引擎；自動啟動；雙擊左 Shift；`cloud_first` 和 F24 自動刷新；`cloud_only` filter；耶魯拼音方案及按方案選擇 Google 引擎；「日」字怎樣打？選擇頁 |
 | 2026-11-05 | Claude Opus 5.5（`claude-opus-5-5`） | 實測 CPU、記憶體和流量 |
 | 2026-11-11 | Claude Fable 5.2（`claude-fable-5-2`） | 開源計劃；`rime_slot` 模式（第6格固定是 Google 首選） |
 | 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 開源準備：`prefetch: auto`（`rime_first` 只在雙 Shift 才查詢）和「正在打字」連線保持；授權、鳴謝、公開版說明文件 |
-| 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 選擇頁重寫：中英切換，分三類讀者（已會拼音打字／識講未打過／學緊廣東話）重寫文案，加常見問題；安裝程式問答改為中英對照 |
+| 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 安裝問答改版：拼音方案題直接問「粵拼（日 = jat）／耶魯拼音（日 = yat）」，可輸入號碼、`jat`、`yat`、「粵拼」等；用法改為 1 `rime_slot`（推薦）／2 `rime_first`／3 `cloud_only`，並提示可隨時重新安裝；選擇頁按新編號更新；`gcloud.lua` 註解改用書面語，整個倉庫統一 |
+| 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 文字規範：README 分為繁體中文書面語（`README.md`）及英文（`README.en.md`）兩版；選擇頁、安裝程式問答、設定檔註解及耶魯方案說明一律改用書面語，不用粵語口語 |
+| 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 選擇頁重寫：中英切換，按三類讀者（已會用拼音打字／會說粵語但未用拼音打字／正在學習粵語）重寫文案，加入常見問題；安裝程式問答改為中英對照 |
 | 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 全新電腦測試準備：支援小狼毫 0.16+ 的自訂用戶資料夾；安裝程式自行下載粵語方案（取代 `rime-install.bat`）；`diagnose.cmd` 診斷報告；`docs/TESTING.md` 測試清單 |
 | 2026-11-11 | Claude Opus 5.5（`claude-opus-5-5`） | 一鍵安裝：背景程式由 Python 改寫成 C#（安裝時用內置 `csc.exe` 編譯，`FileSystemWatcher` 取代輪詢）；`setup.cmd` 問答式安裝（自動安裝小狼毫及 rime-cantonese、加入方案清單）；`uninstall.cmd` |
 
@@ -27,7 +29,9 @@
 | 耶魯方案做成獨立 schema，並刪掉括號內的粵拼 | 可與粵拼並存；括號顯示粵拼會令新手混亂 |
 | 第6格的 Google 候選即使重複也照樣顯示 | 用家要一眼看到 Google 的首選；filter 因此排在 `uniquifier` 之後 |
 | 背景程式用 C# 原始碼、安裝時才編譯 | 每部 Windows 10/11 都有 .NET Framework 4.x 和 `csc.exe`；用家不用裝 Python，也不用下載未簽署的 `.exe`（避免 SmartScreen 警告） |
-| 選擇頁先問「你而家點樣打中文」，再分流 | 原本假設讀者已懂粵拼；改為照顧未用過拼音的人和學廣東話的外國人。已會拼音打字 → 問「日」字拼法 → 小狼毫為主；識講未打過 → 比較耶魯和粵拼 → Google 為主；學緊廣東話 → 問課本用邊套（唔肯定就推薦粵拼）→ Google 為主 |
+| 選擇頁先問「你現在如何輸入中文」，再分流 | 原本假設讀者已懂粵拼；改為照顧未用過拼音的人和學習粵語的外國人。已會用拼音打字 → 問「日」字拼法 → 以小狼毫為主；會說粵語但未用拼音打字 → 比較耶魯拼音和粵拼 → 以 Google 為主；正在學習粵語 → 問課本使用哪一套拼音（不確定則建議粵拼）→ 以 Google 為主 |
+| 面向用家的中文一律用繁體書面語 | 維護者要求：正式文字不用粵語口語，以保持正規感覺。粵語只出現在例子本身（例如候選「我哋今日去食飯」）；程式註解亦已統一為書面語 |
+| 安裝時推薦「保留小狼毫選字，另加 Google 第 6 個候選」（`rime_slot`） | 維護者實際使用後認為最方便；重視私隱或想減輕 CPU 及網絡負擔的用家可選 `rime_first`，新手可選 `cloud_only`。命令列安裝不加 `-Mode` 時，預設仍為 `rime_first`（不預先查詢，最保守） |
 | 選擇頁和安裝程式都要中英對照 | 外國學習者要看懂問題；安裝程式的選項號碼和選擇頁一致 |
 | 程式裝在 `%LOCALAPPDATA%\Programs\rime-google-cantonese` | 用家安裝後可以刪掉下載的資料夾；不需要管理員權限 |
 

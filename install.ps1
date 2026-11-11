@@ -75,14 +75,35 @@ function Ask-YesNo([string]$key) {
     return ($a -eq "" -or $a -match '^[Yy]')
 }
 
-function Ask-Choice([string]$question, [string[]]$options) {
+# Shows a question and its numbered options, then reads the answer. Besides the number, an
+# option accepts the words listed in "<option>_alias" in messages.txt (e.g. jat, yale).
+# Full-width digits are accepted too.
+function Ask-Choice([string]$question, [string[]]$options, [string]$promptKey = "choice", [string]$noteKey = "") {
     Write-Host ""
     Say $question
     foreach ($o in $options) { Say $o }
+    if ($noteKey) { Say $noteKey }
+    $aliases = @{}
+    for ($i = 0; $i -lt $options.Count; $i++) {
+        $k = $options[$i] + "_alias"
+        if ($msg.ContainsKey($k)) {
+            foreach ($w in ($msg[$k] -split ",")) { if ($w.Trim()) { $aliases[$w.Trim().ToLowerInvariant()] = $i + 1 } }
+        }
+    }
     while ($true) {
-        $a = Read-Host (TB "choice")
+        $a = (Read-Host (TB $promptKey))
+        if ($null -eq $a) { $a = "" }
+        $a = $a.Trim()
+        $sb = New-Object System.Text.StringBuilder
+        foreach ($ch in $a.ToCharArray()) {
+            $c = [int]$ch
+            if ($c -ge 0xFF10 -and $c -le 0xFF19) { [void]$sb.Append([char]($c - 0xFF10 + 0x30)) } else { [void]$sb.Append($ch) }
+        }
+        $a = $sb.ToString().ToLowerInvariant()
         $n = 0
         if ([int]::TryParse($a, [ref]$n) -and $n -ge 1 -and $n -le $options.Count) { return $n }
+        if ($aliases.ContainsKey($a)) { return $aliases[$a] }
+        Say "choice_invalid"
     }
 }
 
@@ -242,10 +263,10 @@ try {
 
     # 0c. Questions
     if ($Interactive) {
-        $Yale = ((Ask-Choice "q_scheme" @("scheme_1", "scheme_2")) -eq 2)
+        $Yale = ((Ask-Choice "q_scheme" @("scheme_1", "scheme_2") "choice_scheme") -eq 2)
         Write-Host ""
         Say "privacy"
-        $Mode = @("rime_first", "rime_slot", "cloud_only")[(Ask-Choice "q_mode" @("mode_1", "mode_2", "mode_3")) - 1]
+        $Mode = @("rime_slot", "rime_first", "cloud_only")[(Ask-Choice "q_mode" @("mode_1", "mode_2", "mode_3") "choice" "reinstall_hint") - 1]
         $Autostart = $true
         $AddToSchemaList = $true
         Write-Host ""
@@ -382,6 +403,7 @@ try {
         Say ("done_" + $Mode)
         $schemaKey = if ($Yale) { "name_yale" } else { "name_jyutping" }
         Say "done_switch" (T $schemaKey)
+        Say "reinstall_hint"
     }
 } catch {
     if ($Interactive) {

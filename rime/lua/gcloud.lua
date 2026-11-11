@@ -1,19 +1,19 @@
 -- gcloud.lua — Google 粵語雲端候選 for Rime / 小狼毫 (librime-lua)
 --
 -- 四種模式（gcloud/mode）：
---   rime_first  平時只顯示小狼毫候選；組字中連按兩下左 Shift 先加入 Google 候選（☁，排最前）。
---   rime_slot   同 rime_first，但第一頁最後一格（預設第 6 個）固定留俾 Google 第一個候選；
---               小狼毫頭幾個候選次序不變。雙 Shift 同樣係加入成串 Google 候選。
---   cloud_first 平時 Google 候選排最前；連按兩下左 Shift 改返純小狼毫候選。
---   cloud_only  有 Google 結果就只顯示 Google 候選（filter 收起小狼毫候選）；
---               未有結果（等緊／斷線／查詢失敗）先顯示小狼毫候選。雙 Shift 同樣改返純小狼毫。
--- 雙 Shift 只對當時嗰組拼音生效（再按一次雙 Shift 會切返），下一輪組字回復預設。
+--   rime_first  平時只顯示小狼毫候選；輸入期間連按兩下左 Shift 才加入 Google 候選（☁，排在最前）。
+--   rime_slot   與 rime_first 相同，但第一頁最後一格（預設第 6 個）固定保留給 Google 的首個候選；
+--               小狼毫前幾個候選的次序不變。雙擊 Shift 同樣會加入完整的 Google 候選。
+--   cloud_first 平時 Google 候選排在最前；連按兩下左 Shift 則只顯示小狼毫候選。
+--   cloud_only  有 Google 結果時只顯示 Google 候選（由 filter 隱藏小狼毫候選）；
+--               未有結果（等待中、離線或查詢失敗）時顯示小狼毫候選。雙擊 Shift 同樣只顯示小狼毫候選。
+-- 雙擊 Shift 只適用於當時正在輸入的拼音（再雙擊一次即可切換回來），下一輪組字會恢復預設。
 --
--- gcloud/prefetch 預設 auto：rime_first 只喺雙 Shift 先把拼音送去 Google；其他模式要邊打邊查。
+-- gcloud/prefetch 預設為 auto：rime_first 只在雙擊 Shift 時才把拼音傳送給 Google；其他模式在輸入期間查詢。
 -- 查詢時會把拼音寫入 %APPDATA%\Rime\gcloud\request.txt，由背景程式 rime-gcloud.exe（daemon/RimeGcloud.cs）
--- 向 Google 查詢並存入 cache\。cloud_first／cloud_only 模式下，背景程式收到結果後會發送 F24 鍵，
--- 本處理器截住 F24 就刷新候選，所以 Google 結果到咗會自己出現，唔使再按鍵。
--- librime-lua 本身不能上網，所以透過檔案同背景程式溝通。
+-- 向 Google 查詢並存入 cache\。rime_slot／cloud_first／cloud_only 模式下，背景程式收到結果後會發送 F24 鍵，
+-- 本處理器攔截 F24 後刷新候選，因此 Google 結果到達時會自動顯示，毋須再按鍵。
+-- librime-lua 本身不能連接網絡，因此透過檔案與背景程式溝通。
 
 local M = {}
 
@@ -36,16 +36,16 @@ local seq = 0
 local last_request = nil
 local last_ping = 0
 local PING_EVERY_SECONDS = 20
-local override_query = nil -- 用雙 Shift 反轉咗預設模式嘅拼音
+local override_query = nil -- 以雙擊 Shift 反轉了預設模式的拼音
 
--- eng = gcloud/engine（jyutping／yale），要同 daemon/RimeGcloud.cs 嘅 CachePath 一致
+-- eng = gcloud/engine（jyutping／yale），須與 daemon/RimeGcloud.cs 的 CachePath 一致
 local function cache_file(q, eng)
   if eng == nil or eng == "jyutping" then return CACHE_PREFIX .. q .. ".txt" end
   return CACHE_PREFIX .. eng .. "_" .. q .. ".txt"
 end
 
--- 只保留粵拼字母。q / v / x 喺 jyut6ping3 方案代表聲調或喉塞，Google 唔識，要剔走。
--- pos[i] = 第 i 個查詢字母喺原始輸入嘅位置，用嚟將 Google 嘅 matched_length 對返原始輸入。
+-- 只保留粵拼字母。q / v / x 在 jyut6ping3 方案中代表聲調或喉塞音，Google 無法辨認，須予刪除。
+-- pos[i] = 第 i 個查詢字母在原始輸入中的位置，用於把 Google 的 matched_length 對應回原始輸入。
 local function normalize(raw)
   local chars, pos = {}, {}
   for i = 1, #raw do
@@ -67,7 +67,7 @@ local function raw_end(raw, pos, qlen, matched)
     if c == "v" or c == "x" or c == "'" or c == " " then
       e = e + 1
     elseif c == "q" then
-      -- q 可以係聲調（3/6 聲），亦可以係下一個音節嘅喉塞；後面接元音就當屬下一個音節
+      -- q 可以是聲調（第 3／6 聲），亦可以是下一個音節的喉塞音；其後接元音時視為屬於下一個音節
       local j = e + 1
       while j <= #raw and raw:sub(j, j) == "q" do j = j + 1 end
       local nxt = raw:sub(j, j)
@@ -80,7 +80,7 @@ local function raw_end(raw, pos, qlen, matched)
   return e
 end
 
--- push = true：叫背景程式結果到咗就發 F24 提示刷新
+-- push = true：要求背景程式在結果到達時發送 F24 提示刷新
 local function write_request(q, eng, force, push)
   local key = eng .. ":" .. q
   if not force and key == last_request then return end
@@ -93,8 +93,8 @@ local function write_request(q, eng, force, push)
   end
 end
 
--- 唔預先查詢時用：話俾背景程式知「用家打緊字」，等佢保持同 Google 嘅連線，
--- 雙 Shift 時唔使重新握手。只寫空查詢，唔會送任何拼音出去；最多每 20 秒一次。
+-- 不預先查詢時使用：通知背景程式「用家正在打字」，讓它保持與 Google 的連線，
+-- 雙擊 Shift 時毋須重新建立連線。只寫入空查詢，不會傳送任何拼音；最多每 20 秒一次。
 local function write_ping(eng)
   local now = os.time()
   if now - last_ping < PING_EVERY_SECONDS then return end
@@ -108,7 +108,7 @@ local function write_ping(eng)
   end
 end
 
--- 回傳候選表；false = 雲端查詢失敗；nil = 未有結果
+-- 傳回候選表；false = 雲端查詢失敗；nil = 尚未有結果
 local function read_cache(q, eng)
   local f = io.open(cache_file(q, eng), "rb")
   if not f then return nil end
@@ -135,7 +135,7 @@ local function daemon_alive()
   return t ~= nil and math.abs(os.time() - t) < 8
 end
 
--- librime-lua 冇 sleep，只能忙等；只會喺用戶用雙 Shift 要求雲端候選時用，最多等 timeout_ms。
+-- librime-lua 沒有 sleep 功能，只能忙等；只在用家以雙擊 Shift 要求雲端候選時使用，最多等待 timeout_ms。
 local function wait_for(q, eng, timeout_ms)
   local deadline = os.clock() + timeout_ms / 1000
   local next_check = 0
@@ -175,15 +175,15 @@ local function load_config(env)
     show_note = bool("gcloud/show_annotation", true),
     max_candidates = cfg:get_int("gcloud/max_candidates") or 15,
     off_option = str("gcloud/off_option", "gcloud_off"),
-    engine = str("gcloud/engine", "jyutping"), -- jyutping = 粵拼引擎；yale = 耶魯（Google「廣東話」）
+    engine = str("gcloud/engine", "jyutping"), -- jyutping = 粵拼引擎；yale = 耶魯拼音（Google「廣東話」引擎）
   }
   if not c.engine:find("^[a-z]+$") then c.engine = "jyutping" end
-  -- 舊設定 auto_cached: true 等同「有就顯示」，即 cloud_first 但唔主動刷新
+  -- 舊設定 auto_cached: true 等同「有結果就顯示」，即 cloud_first 但不會主動刷新
   c.cloud_default = (c.mode == "cloud_first") or (c.mode == "cloud_only") or c.auto_cached
-  -- auto：rime_first 平時唔顯示 Google，所以只喺雙 Shift 先查詢；其他模式要邊打邊查
+  -- auto：rime_first 平時不顯示 Google 候選，因此只在雙擊 Shift 時查詢；其他模式在輸入期間查詢
   if c.prefetch == nil then c.prefetch = (c.mode ~= "rime_first") or c.auto_cached end
   c.slot_mode = (c.mode == "rime_slot")
-  -- Google 候選放第幾格：預設係第一頁最後一格（menu/page_size）
+  -- Google 候選放在第幾格：預設為第一頁最後一格（menu/page_size）
   c.slot = cfg:get_int("gcloud/slot") or cfg:get_int("menu/page_size") or 6
   if c.slot < 2 then c.slot = 2 end
   c.push = c.push_refresh and (c.mode == "cloud_first" or c.mode == "cloud_only" or c.slot_mode)
@@ -191,7 +191,7 @@ local function load_config(env)
   return c
 end
 
--- 呢組拼音而家應唔應該顯示雲端候選
+-- 這組拼音目前是否應顯示雲端候選
 local function cloud_wanted(cfg, q)
   if override_query == q then return not cfg.cloud_default end
   return cfg.cloud_default
@@ -207,10 +207,10 @@ end
 
 -- ------------------------------------------------------------ translator
 
--- cloud_shown[段起點] = { input = 當時完整輸入, n = 呢段出咗幾多個 ☁ 候選 }。
--- translator 每次查詢都會重設；cloud_only 嘅 filter 靠佢判斷要唔要收起小狼毫候選。
+-- cloud_shown[段起點] = { input = 當時的完整輸入, n = 這一段產生了多少個 ☁ 候選 }。
+-- translator 每次查詢都會重設；cloud_only 的 filter 據此判斷是否隱藏小狼毫候選。
 local cloud_shown = {}
--- slot_pick[段起點] = { input = 當時完整輸入, cand = Google 第一個候選 }，rime_slot 模式由 slot_filter 插入。
+-- slot_pick[段起點] = { input = 當時的完整輸入, cand = Google 的首個候選 }，rime_slot 模式下由 slot_filter 插入。
 local slot_pick = {}
 
 local function translate(input, seg, env)
@@ -224,17 +224,17 @@ local function translate(input, seg, env)
   if #q == 0 or #q > MAX_QUERY_LEN then return end
 
   local wanted = cloud_wanted(cfg, q)
-  local show = wanted or cfg.slot_mode -- 畫面上會用到 Google 結果
+  local show = wanted or cfg.slot_mode -- 畫面上會用到 Google 的結果
   local list = show and read_cache(q, cfg.engine) or nil
   if cfg.prefetch or show then
-    -- 要顯示但未有結果：叫背景程式結果到咗就提示刷新（rime_first 平時唔顯示，所以唔使）
+    -- 需要顯示但尚未有結果：要求背景程式在結果到達時提示刷新（rime_first 平時不顯示，因此毋須刷新）
     write_request(q, cfg.engine, false, show and list == nil and cfg.push)
   else
     write_ping(cfg.engine)
   end
   if not list then return end
 
-  -- 長匹配排先（同 Rime 合併候選嘅規則一致），同長度保留 Google 原本次序
+  -- 較長的匹配排在前面（與 Rime 合併候選的規則一致），長度相同時保留 Google 的原有次序
   table.sort(list, function(a, b)
     if a.len ~= b.len then return a.len > b.len end
     return a.rank < b.rank
@@ -253,11 +253,11 @@ local function translate(input, seg, env)
   end
   if #cands == 0 then return end
   if not wanted then
-    -- rime_slot：呢度唔出候選，只記低 Google 第一個，由 slot_filter 放入第一頁最後一格
+    -- rime_slot：此處不產生候選，只記下 Google 的首個候選，由 slot_filter 放入第一頁最後一格
     slot_pick[seg.start] = { input = ctx.input, cand = cands[1] }
     return
   end
-  -- 要喺第一個 yield 之前記低：librime-lua 喺 Query 時已經行到第一個 yield，filter 之後先讀
+  -- 須在第一個 yield 之前記下：librime-lua 在 Query 時已執行至第一個 yield，filter 之後才讀取
   cloud_shown[seg.start] = { input = ctx.input, n = #cands }
   for _, cand in ipairs(cands) do yield(cand) end
 end
@@ -272,8 +272,8 @@ M.translator = {
 
 -- ------------------------------------------------------------ filter (cloud_only)
 
--- 排喺所有 filter 最前。呢段有 ☁ 候選，就只放行 ☁ 候選；出齊 n 個即停，
--- 唔使行晒小狼毫後面成串候選。其他模式、或者呢段冇 ☁ 候選，就原封不動放行。
+-- 排在所有 filter 最前。這一段有 ☁ 候選時只放行 ☁ 候選，放行 n 個後即停止，
+-- 毋須逐一處理小狼毫其後的大量候選。其他模式或這一段沒有 ☁ 候選時，則原樣放行。
 local function filter(input, env)
   local cfg = env.gcloud
   local remaining = nil
@@ -302,15 +302,15 @@ M.filter = {
     local ok, err = pcall(filter, input, env)
     if not ok then
       if log then log.error("gcloud filter: " .. tostring(err)) end
-      for cand in input:iter() do yield(cand) end -- 出錯就放行餘下候選，唔好令候選欄變空
+      for cand in input:iter() do yield(cand) end -- 出錯時放行餘下候選，避免候選欄變成空白
     end
   end,
 }
 
 -- ------------------------------------------------------------ filter (rime_slot)
 
--- 排喺所有 filter 最後（uniquifier 之後），所以就算 Google 第一個候選同小狼毫頭幾個重複，
--- 都唔會被剔走：第 slot 格永遠係 Google 第一個候選。小狼毫候選唔夠 slot-1 個就排喺最尾。
+-- 排在所有 filter 最後（uniquifier 之後），因此即使 Google 的首個候選與小狼毫前幾個候選重複，
+-- 亦不會被刪除：第 slot 格永遠是 Google 的首個候選。小狼毫候選不足 slot-1 個時，則放在最後。
 local function slot_filter(input, env)
   local cfg = env.gcloud
   local pick = nil
@@ -345,7 +345,7 @@ M.slot_filter = {
 
 local kRejected, kAccepted, kNoop = 0, 1, 2
 
--- 目前組字中（abc 段）嘅查詢拼音；唔喺組字或者雲端已關就回傳 nil
+-- 目前組字中（abc 段）的查詢拼音；未在組字或已關閉雲端時傳回 nil
 local function composing_query(ctx, cfg)
   if not ctx:is_composing() or ctx:get_option(cfg.off_option) then return nil end
   local seg = current_abc_segment(ctx)
@@ -355,13 +355,13 @@ local function composing_query(ctx, cfg)
   return q
 end
 
--- 反轉呢組拼音嘅模式；如果變成要顯示雲端候選而未有結果，就等一陣
+-- 反轉這組拼音的模式；如變為需要顯示雲端候選而尚未有結果，則稍作等待
 local function toggle_cloud(ctx, cfg, q)
   if override_query == q then override_query = nil else override_query = q end
   if cloud_wanted(cfg, q) then
     local cached = read_cache(q, cfg.engine)
     if cached == false then
-      os.remove(cache_file(q, cfg.engine)) -- 之前失敗過，重試
+      os.remove(cache_file(q, cfg.engine)) -- 之前曾經失敗，重新嘗試
       cached = nil
     end
     if cached == nil then
@@ -381,11 +381,11 @@ local function process(key, env)
   local ctx = env.engine.context
   local repr = key:repr()
 
-  -- 新一輪組字開始（未組字時按鍵）：清除上一輪雙 Shift 嘅反轉。
-  -- 唔用 update_notifier:connect，避免由 C++ 事件回調入 Lua（較易令 rime.dll 出事）。
+  -- 新一輪組字開始（未組字時按鍵）：清除上一輪雙擊 Shift 的反轉。
+  -- 不使用 update_notifier:connect，以免由 C++ 事件回調進入 Lua（較易導致 rime.dll 出錯）。
   if not key:release() and not ctx:is_composing() then override_query = nil end
 
-  -- 背景程式發嚟嘅刷新鍵（F24）：組字中就截住並刷新；唔喺組字就放行（F24 對一般程式冇作用）
+  -- 背景程式發出的刷新鍵（F24）：組字中攔截並刷新；未在組字時放行（F24 對一般程式沒有作用）
   if repr == cfg.refresh_key or repr == "Release+" .. cfg.refresh_key then
     if not ctx:is_composing() then return kNoop end
     if not key:release() then
@@ -398,8 +398,8 @@ local function process(key, env)
     return kAccepted
   end
 
-  -- 雙擊左 Shift。第一下照常交俾 ascii_composer（組字中即係臨時切換英文），
-  -- 第二下喺時限內就攔截：還原中文模式並反轉雲端／本地。右 Shift 唔受影響。
+  -- 雙擊左 Shift。第一下照常交由 ascii_composer 處理（組字中即臨時切換英文），
+  -- 第二下如在時限內則予以攔截：還原中文模式並反轉雲端／本地。右 Shift 不受影響。
   if cfg.double_shift and key.keycode == XK_Shift_L then
     local other_mod = key:ctrl() or key:alt() or key:super()
     if not key:release() then
@@ -413,8 +413,8 @@ local function process(key, env)
       return kNoop
     end
     local now = os.clock()
-    -- 第二下：第一下已經令組字臨時變成英文（raw 段，唔再係 abc），所以唔可以再搵 abc 段；
-    -- 只要組字內容同第一下時一樣，就用第一下記低嘅拼音。
+    -- 第二下：第一下已令組字臨時變為英文（raw 段，不再是 abc），因此無法再找到 abc 段；
+    -- 只要組字內容與第一下時相同，就沿用第一下記下的拼音。
     if env.last_tap and env.last_tap_input == ctx.input
         and (now - env.last_tap) * 1000 <= cfg.double_shift_ms then
       local q = env.last_tap_q
@@ -436,11 +436,11 @@ local function process(key, env)
   end
 
   if not key:release() then
-    env.last_tap = nil -- 兩下 Shift 之間按咗其他鍵，就唔算雙擊
+    env.last_tap = nil -- 兩下 Shift 之間按了其他鍵，則不算雙擊
     env.shift_clean = false
   end
 
-  -- 可選嘅單鍵觸發（gcloud/trigger，預設 none）
+  -- 可選的單鍵觸發（gcloud/trigger，預設為 none）
   if cfg.trigger ~= "none" and not key:release() and repr == cfg.trigger then
     local q = composing_query(ctx, cfg)
     if not q then return kNoop end
