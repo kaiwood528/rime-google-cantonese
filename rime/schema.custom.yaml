@@ -1,0 +1,31 @@
+# rime-google-cantonese：Google 粵語雲端候選
+# 安裝程式會把本檔複製成 <schema_id>.custom.yaml（例如 jyut6ping3.custom.yaml）。
+patch:
+  "switches/@next":
+    name: gcloud_off
+    states: [ ☁雲端, 本地 ]
+  # 處理器要排喺 ascii_composer 之前，先截到雙擊 Shift
+  "engine/processors/@before 0": lua_processor@gcloud_processor
+  "engine/translators/@before 0": lua_translator@gcloud_translator
+  # filter 要排最前（喺繁簡、emoji、uniquifier 之前），cloud_only 先收得起小狼毫候選
+  "engine/filters/@before 0": lua_filter@gcloud_filter
+  # rime_slot 用：排最後（uniquifier 之後），將 Google 第一個候選放入第一頁最後一格
+  "engine/filters/@next": lua_filter@gcloud_slot_filter
+  # rime_slot 用：每頁 6 個候選，第 6 格留俾 Google（安裝程式揀 rime_slot 時會自動開啟呢行）
+  # "menu/page_size": 6
+  gcloud:
+    mode: rime_first        # rime_first  = 平時純小狼毫，雙 Shift 加入 Google
+                            # rime_slot   = 同 rime_first，另外第一頁最後一格固定係 Google 第一個候選
+                            # cloud_first = 平時 Google 排先，小狼毫排後面
+                            # cloud_only  = 有 Google 結果就只顯示 Google，未有結果先顯示小狼毫
+                            # 四種模式下雙 Shift 都係反轉當時嗰組拼音
+    double_shift: true      # 組字中快速連按兩下左 Shift，反轉上面嘅模式
+    double_shift_ms: 500    # 兩下 Shift 之間最多相隔幾耐（毫秒）
+    trigger: none           # 另外指定單鍵觸發（例如 Tab）；none = 不用
+    push_refresh: true      # rime_slot／cloud_first／cloud_only：Google 結果到咗就由背景程式發 F24 提示刷新
+    refresh_key: F24        # 背景程式用嘅刷新鍵（要同 gcloud_daemon.py 一致）
+    timeout_ms: 1500        # 雙 Shift 要求雲端候選後，最多等幾耐（毫秒）
+    prefetch: auto          # auto = rime_first 只喺雙 Shift 先查詢；其他模式打字途中預先查詢
+                            # true / false = 強制開／關
+    show_annotation: true   # 候選後面顯示 Google 嘅拼音註解
+    max_candidates: 15
